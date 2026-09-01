@@ -283,6 +283,7 @@ function pickWord(word, span){
   setTimeout(() => span.classList.remove('picked'), 400);
 
   pickedWords.push(word);
+  saveToStorage();
   renderTable();
 }
 
@@ -305,9 +306,43 @@ function renderTable(){
 
 function removeWord(index){
   pickedWords.splice(index, 1);
+  saveToStorage();
   renderTable();
 }
 window.removeWord = removeWord;
+
+const STORAGE_KEY = 'wordPickerSavedWords';
+
+function saveToStorage(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pickedWords));
+  }catch(e){
+    console.warn('localStorage save failed:', e);
+  }
+}
+
+function loadFromStorage(){
+  try{
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved){
+      pickedWords = JSON.parse(saved);
+    }
+  }catch(e){
+    console.warn('localStorage load failed:', e);
+  }
+}
+
+function clearStorage(){
+  try{
+    localStorage.removeItem(STORAGE_KEY);
+  }catch(e){
+    console.warn('localStorage clear failed:', e);
+  }
+}
+
+// restore any previously saved words on page load
+loadFromStorage();
+renderTable();
 
 function animate(timestamp){
   if(lastTime === null) lastTime = timestamp;
@@ -375,6 +410,7 @@ resetBtn.addEventListener('click', () => {
   marqueeTrack.innerHTML = '';
   inputText.value = '';
   pickedWords = [];
+  clearStorage();
   renderTable();
   posX = 0;
   direction = -1;
