@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scrolling Text Word Picker</title>
+<style>
+  :root{
+    --bg:#0f172a;
+    --panel:#1e293b;
+    --accent:#38bdf8;
+    --accent2:#f472b6;
+    --text:#e2e8f0;
+    --muted:#94a3b8;
+    --border:#334155;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI', system-ui, sans-serif;
+    background:linear-gradient(160deg,#0f172a,#1e293b 60%,#0f172a);
+    color:var(--text);
+    min-height:100vh;
+    padding:24px;
+  }
+  h1{
+    text-align:center;
+    font-size:1.5rem;
+    margin-bottom:20px;
+    color:var(--accent);
+    letter-spacing:0.5px;
+  }
+  .wrap{
+    max-width:900px;
+    margin:0 auto;
+    display:flex;
+    flex-direction:column;
+    gap:20px;
+  }
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:18px 20px;
+    box-shadow:0 4px 20px rgba(0,0,0,0.3);
+  }
+  textarea{
+    width:100%;
+    min-height:110px;
+    background:#0f172a;
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px;
+    font-size:1rem;
+    resize:vertical;
+    outline:none;
+  }
+  textarea:focus{border-color:var(--accent);}
+  .controls{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:14px;
+    margin-top:14px;
+  }
+  button{
+    background:var(--accent);
+    color:#0f172a;
+    border:none;
+    padding:10px 18px;
+    border-radius:8px;
+    font-weight:600;
+    cursor:pointer;
+    font-size:0.95rem;
+    transition:transform .15s ease, background .2s ease;
+  }
+  button:hover{transform:translateY(-2px);}
+  button.secondary{
+    background:transparent;
+    color:var(--text);
+    border:1px solid var(--border);
+  }
+  button.danger{
+    background:var(--accent2);
+    color:#1e0a13;
+  }
+  .speed-box{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex:1;
+    min-width:220px;
+  }
+  .speed-box label{
+    font-size:0.85rem;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+  input[type=range]{
+    flex:1;
+    accent-color:var(--accent);
+  }
+  #speedVal{
+    font-size:0.85rem;
+    color:var(--accent);
+    min-width:60px;
+    text-align:right;
+  }
+  .marquee-outer{
+    position:relative;
+    overflow:hidden;
+    background:#0b1220;
+    border:1px solid var(--border);
+    border-radius:12px;
+    height:70px;
+    display:flex;
+    align-items:center;
+  }
+  .marquee-track{
+    position:absolute;
+    white-space:nowrap;
+    display:flex;
+    gap:0;
+    will-change:transform;
+    backface-visibility:hidden;
+    transform-style:preserve-3d;
+    -webkit-font-smoothing:antialiased;
+  }
+  .word{
+    display:inline-block;
+    padding:6px 10px;
+    margin:0 4px;
+    font-size:1.15rem;
+    border-radius:8px;
+    cursor:pointer;
+    transition:background .15s ease, color .15s ease, transform .1s ease;
+    user-select:none;
+  }
+  .word:hover{
+    background:var(--accent);
+    color:#0f172a;
+    transform:scale(1.08);
+  }
+  .word.picked{
+    background:var(--accent2);
+    color:#1e0a13;
+  }
+  .hint{
+    font-size:0.8rem;
+    color:var(--muted);
+    margin-top:8px;
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:6px;
+  }
+  th, td{
+    text-align:left;
+    padding:10px 12px;
+    border-bottom:1px solid var(--border);
+    font-size:0.95rem;
+  }
+  th{
+    color:var(--accent);
+    font-size:0.8rem;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+  }
+  tr:hover td{background:rgba(56,189,248,0.06);}
+  .empty-row td{
+    color:var(--muted);
+    text-align:center;
+    padding:20px;
+    font-style:italic;
+  }
+  .table-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .badge{
+    background:var(--accent);
+    color:#0f172a;
+    border-radius:999px;
+    padding:2px 10px;
+    font-size:0.8rem;
+    font-weight:700;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📜 স্ক্রলিং টেক্সট ওয়ার্ড পিকার</h1>
+
+  <div class="card">
+    <textarea id="inputText" placeholder="এখানে আপনার টেক্সট পেস্ট করুন..."></textarea>
+    <div class="controls">
+      <button id="startBtn">▶ শুরু করুন</button>
+      <button id="pauseBtn" class="secondary">⏸ থামান</button>
+      <button id="reverseBtn" class="secondary">◀ উল্টো দিকে (ডানে) পাঠান</button>
+      <button id="resetBtn" class="danger">⟲ রিসেট</button>
+      <div class="speed-box">
+        <label for="speed">গতি</label>
+        <input type="range" id="speed" min="10" max="400" value="80">
+        <span id="speedVal">80 px/s</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="marquee-outer" id="marqueeOuter">
+      <div class="marquee-track" id="marqueeTrack"></div>
+    </div>
+    <p class="hint">চলন্ত টেক্সট থেকে যেকোনো শব্দে ক্লিক করুন — নিচের টেবিলে যোগ হয়ে যাবে।</p>
+  </div>
+
+  <div class="card">
+    <div class="table-header">
+      <h3 style="margin:0;color:var(--text);">নির্বাচিত শব্দসমূহ</h3>
+      <span class="badge" id="countBadge">0</span>
+    </div>
+    <table>
+      <thead>
+        <tr><th>#</th><th>শব্দ</th><th>সময়</th><th></th></tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr class="empty-row"><td colspan="4">এখনো কোনো শব্দ নির্বাচন করা হয়নি</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const inputText = document.getElementById('inputText');
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const reverseBtn = document.getElementById('reverseBtn');
+const resetBtn = document.getElementById('resetBtn');
+const speed = document.getElementById('speed');
+const speedVal = document.getElementById('speedVal');
+const marqueeOuter = document.getElementById('marqueeOuter');
+const marqueeTrack = document.getElementById('marqueeTrack');
+const tableBody = document.getElementById('tableBody');
+const countBadge = document.getElementById('countBadge');
+
+let pickedWords = [];
+let posX = 0;
+let running = false;
+let rafId = null;
+let lastTime = null;
+let trackWidth = 0;
+let direction = -1; // -1 = left-ward (default), 1 = right-ward
+
+speed.addEventListener('input', () => {
+  speedVal.textContent = speed.value + ' px/s';
+});
+
+function buildTrack(){
+  const text = inputText.value.trim();
+  marqueeTrack.innerHTML = '';
+  if(!text) return;
+
+  const words = text.split(/\s+/).filter(w => w.length > 0);
+
+  words.forEach(w => {
+    const span = document.createElement('span');
+    span.className = 'word';
+    span.textContent = w;
+    span.addEventListener('click', () => pickWord(w, span));
+    marqueeTrack.appendChild(span);
+  });
+
+  // start position: track begins fully to the right of the visible box
+  posX = marqueeOuter.clientWidth;
+  marqueeTrack.style.transform = `translate3d(${posX}px,0,0)`;
+  trackWidth = marqueeTrack.scrollWidth; // full width of the word set
+}
+
+function pickWord(word, span){
+  span.classList.add('picked');
+  setTimeout(() => span.classList.remove('picked'), 400);
+
+  pickedWords.push(word);
+  saveToStorage();
+  renderTable();
+}
+
+function renderTable(){
+  countBadge.textContent = pickedWords.length;
+  if(pickedWords.length === 0){
+    tableBody.innerHTML = '<tr class="empty-row"><td colspan="4">এখনো কোনো শব্দ নির্বাচন করা হয়নি</td></tr>';
+    return;
+  }
+  tableBody.innerHTML = pickedWords.map((w, i) => {
+    const time = new Date().toLocaleTimeString('bn-BD');
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${w}</td>
+      <td>${time}</td>
+      <td><button class="secondary" style="padding:4px 10px;font-size:0.75rem;" onclick="removeWord(${i})">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function removeWord(index){
+  pickedWords.splice(index, 1);
+  saveToStorage();
+  renderTable();
+}
+window.removeWord = removeWord;
+
+const STORAGE_KEY = 'wordPickerSavedWords';
+
+function saveToStorage(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pickedWords));
+  }catch(e){
+    console.warn('localStorage save failed:', e);
+  }
+}
+
+function loadFromStorage(){
+  try{
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved){
+      pickedWords = JSON.parse(saved);
+    }
+  }catch(e){
+    console.warn('localStorage load failed:', e);
+  }
+}
+
+function clearStorage(){
+  try{
+    localStorage.removeItem(STORAGE_KEY);
+  }catch(e){
+    console.warn('localStorage clear failed:', e);
+  }
+}
+
+// restore any previously saved words on page load
+loadFromStorage();
+renderTable();
+
+function animate(timestamp){
+  if(lastTime === null) lastTime = timestamp;
+  // clamp dt so a dropped frame / tab-switch doesn't cause a visible jump
+  let dt = (timestamp - lastTime) / 1000;
+  if(dt > 0.05) dt = 0.05;
+  lastTime = timestamp;
+
+  const pxPerSecond = parseFloat(speed.value);
+  posX += direction * pxPerSecond * dt;
+
+  marqueeTrack.style.transform = `translate3d(${posX}px,0,0)`;
+
+  // moving left: stop once fully past the left edge
+  if(direction === -1 && trackWidth > 0 && posX <= -trackWidth){
+    running = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    return;
+  }
+  // moving right: stop once back at the starting position
+  if(direction === 1 && posX >= marqueeOuter.clientWidth){
+    posX = marqueeOuter.clientWidth;
+    marqueeTrack.style.transform = `translate3d(${posX}px,0,0)`;
+    running = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    return;
+  }
+
+  if(running){
+    rafId = requestAnimationFrame(animate);
+  }
+}
+
+startBtn.addEventListener('click', () => {
+  const finished = trackWidth > 0 && posX <= -trackWidth;
+  if(marqueeTrack.children.length === 0 || finished){
+    buildTrack();
+  }
+  direction = -1;
+  if(!running){
+    running = true;
+    lastTime = null;
+    rafId = requestAnimationFrame(animate);
+  }
+});
+
+reverseBtn.addEventListener('click', () => {
+  if(marqueeTrack.children.length === 0) return;
+  direction = direction === -1 ? 1 : -1;
+  if(!running){
+    running = true;
+    lastTime = null;
+    rafId = requestAnimationFrame(animate);
+  }
+});
+
+pauseBtn.addEventListener('click', () => {
+  running = false;
+  if(rafId) cancelAnimationFrame(rafId);
+});
+
+resetBtn.addEventListener('click', () => {
+  running = false;
+  if(rafId) cancelAnimationFrame(rafId);
+  marqueeTrack.innerHTML = '';
+  inputText.value = '';
+  pickedWords = [];
+  clearStorage();
+  renderTable();
+  posX = 0;
+  direction = -1;
+  marqueeTrack.style.transform = 'translate3d(0px,0,0)';
+});
+
+window.addEventListener('resize', () => {
+  if(marqueeTrack.children.length > 0){
+    trackWidth = marqueeTrack.scrollWidth;
+  }
+});
+</script>
+</body>
+</html>
