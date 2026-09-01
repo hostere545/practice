@@ -123,6 +123,9 @@
     display:flex;
     gap:0;
     will-change:transform;
+    backface-visibility:hidden;
+    transform-style:preserve-3d;
+    -webkit-font-smoothing:antialiased;
   }
   .word{
     display:inline-block;
@@ -196,6 +199,7 @@
     <div class="controls">
       <button id="startBtn">▶ শুরু করুন</button>
       <button id="pauseBtn" class="secondary">⏸ থামান</button>
+      <button id="reverseBtn" class="secondary">◀ উল্টো দিকে (ডানে) পাঠান</button>
       <button id="resetBtn" class="danger">⟲ রিসেট</button>
       <div class="speed-box">
         <label for="speed">গতি</label>
@@ -232,6 +236,7 @@
 const inputText = document.getElementById('inputText');
 const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
+const reverseBtn = document.getElementById('reverseBtn');
 const resetBtn = document.getElementById('resetBtn');
 const speed = document.getElementById('speed');
 const speedVal = document.getElementById('speedVal');
@@ -246,6 +251,7 @@ let running = false;
 let rafId = null;
 let lastTime = null;
 let trackWidth = 0;
+let direction = -1; // -1 = left-ward (default), 1 = right-ward
 
 speed.addEventListener('input', () => {
   speedVal.textContent = speed.value + ' px/s';
@@ -258,23 +264,18 @@ function buildTrack(){
 
   const words = text.split(/\s+/).filter(w => w.length > 0);
 
-  // duplicate the word list so the scroll loops seamlessly
-  const buildSet = () => {
-    words.forEach(w => {
-      const span = document.createElement('span');
-      span.className = 'word';
-      span.textContent = w;
-      span.addEventListener('click', () => pickWord(w, span));
-      marqueeTrack.appendChild(span);
-    });
-  };
-  buildSet();
-  buildSet();
+  words.forEach(w => {
+    const span = document.createElement('span');
+    span.className = 'word';
+    span.textContent = w;
+    span.addEventListener('click', () => pickWord(w, span));
+    marqueeTrack.appendChild(span);
+  });
 
   // start position: track begins fully to the right of the visible box
   posX = marqueeOuter.clientWidth;
-  marqueeTrack.style.transform = `translateX(${posX}px)`;
-  trackWidth = marqueeTrack.scrollWidth / 2; // width of one word-set
+  marqueeTrack.style.transform = `translate3d(${posX}px,0,0)`;
+  trackWidth = marqueeTrack.scrollWidth; // full width of the word set
 }
 
 function pickWord(word, span){
@@ -310,17 +311,30 @@ window.removeWord = removeWord;
 
 function animate(timestamp){
   if(lastTime === null) lastTime = timestamp;
-  const dt = (timestamp - lastTime) / 1000;
+  // clamp dt so a dropped frame / tab-switch doesn't cause a visible jump
+  let dt = (timestamp - lastTime) / 1000;
+  if(dt > 0.05) dt = 0.05;
   lastTime = timestamp;
 
   const pxPerSecond = parseFloat(speed.value);
-  posX -= pxPerSecond * dt;
+  posX += direction * pxPerSecond * dt;
 
-  if(trackWidth > 0 && posX <= -trackWidth){
-    posX += trackWidth;
+  marqueeTrack.style.transform = `translate3d(${posX}px,0,0)`;
+
+  // moving left: stop once fully past the left edge
+  if(direction === -1 && trackWidth > 0 && posX <= -trackWidth){
+    running = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    return;
   }
-
-  marqueeTrack.style.transform = `translateX(${posX}px)`;
+  // moving right: stop once back at the starting position
+  if(direction === 1 && posX >= marqueeOuter.clientWidth){
+    posX = marqueeOuter.clientWidth;
+    marqueeTrack.style.transform = `translate3d(${posX}px,0,0)`;
+    running = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    return;
+  }
 
   if(running){
     rafId = requestAnimationFrame(animate);
@@ -328,9 +342,21 @@ function animate(timestamp){
 }
 
 startBtn.addEventListener('click', () => {
-  if(marqueeTrack.children.length === 0){
+  const finished = trackWidth > 0 && posX <= -trackWidth;
+  if(marqueeTrack.children.length === 0 || finished){
     buildTrack();
   }
+  direction = -1;
+  if(!running){
+    running = true;
+    lastTime = null;
+    rafId = requestAnimationFrame(animate);
+  }
+});
+
+reverseBtn.addEventListener('click', () => {
+  if(marqueeTrack.children.length === 0) return;
+  direction = direction === -1 ? 1 : -1;
   if(!running){
     running = true;
     lastTime = null;
@@ -351,12 +377,13 @@ resetBtn.addEventListener('click', () => {
   pickedWords = [];
   renderTable();
   posX = 0;
-  marqueeTrack.style.transform = 'translateX(0px)';
+  direction = -1;
+  marqueeTrack.style.transform = 'translate3d(0px,0,0)';
 });
 
 window.addEventListener('resize', () => {
   if(marqueeTrack.children.length > 0){
-    trackWidth = marqueeTrack.scrollWidth / 2;
+    trackWidth = marqueeTrack.scrollWidth;
   }
 });
 </script>
