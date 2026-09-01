@@ -259,13 +259,16 @@ const importFile = document.getElementById('importFile');
 let pickedWords = [];
 let posX = 0;
 let running = false;
-let rafId = null;
-let lastTime = null;
 let trackWidth = 0;
 let direction = -1; // -1 = left-ward (default), 1 = right-ward
+let animTargetX = 0;
 
 speed.addEventListener('input', () => {
   speedVal.textContent = speed.value + ' px/s';
+  if(running){
+    posX = getCurrentX();
+    runTo(animTargetX);
+  }
 });
 
 function buildTrack(){
@@ -394,38 +397,56 @@ importFile.addEventListener('change', (e) => {
   reader.readAsText(file);
 });
 
-function animate(timestamp){
-  if(lastTime === null) lastTime = timestamp;
-  // clamp dt so a dropped frame / tab-switch doesn't cause a visible jump
-  let dt = (timestamp - lastTime) / 1000;
-  if(dt > 0.05) dt = 0.05;
-  lastTime = timestamp;
-
-  const pxPerSecond = parseFloat(speed.value);
-  posX += direction * pxPerSecond * dt;
-
-  const renderX = Math.round(posX);
-  marqueeTrack.style.transform = `translate3d(${renderX}px,0,0)`;
-
-  // moving left: stop once fully past the left edge
-  if(direction === -1 && trackWidth > 0 && posX <= -trackWidth){
-    running = false;
-    if(rafId) cancelAnimationFrame(rafId);
-    return;
+// Reads the track's current on-screen X position from its computed transform,
+// so we can pause/retarget mid-transition without any per-frame JS.
+function getCurrentX(){
+  const t = getComputedStyle(marqueeTrack).transform;
+  if(t === 'none') return posX;
+  if(t.startsWith('matrix3d')){
+    const v = t.slice(9, -1).split(',').map(Number);
+    return v[12];
   }
-  // moving right: stop once back at the starting position
-  if(direction === 1 && posX >= marqueeOuter.clientWidth){
-    posX = marqueeOuter.clientWidth;
-    marqueeTrack.style.transform = `translate3d(${posX}px,0,0)`;
-    running = false;
-    if(rafId) cancelAnimationFrame(rafId);
-    return;
-  }
-
-  if(running){
-    rafId = requestAnimationFrame(animate);
-  }
+  const v = t.slice(7, -1).split(',').map(Number);
+  return v[4];
 }
+
+// Starts (or restarts) a single CSS transition from the current posX to targetX.
+// The browser's compositor drives the movement — no JS runs per frame, so it
+// stays smooth even on low-power / 2-core machines.
+function runTo(targetX){
+  const pxPerSecond = parseFloat(speed.value);
+  const distance = Math.abs(targetX - posX);
+  const duration = distance / pxPerSecond;
+
+  if(duration <= 0){
+    running = false;
+    return;
+  }
+
+  marqueeTrack.style.transition = 'none';
+  marqueeTrack.style.transform = `translate3d(${posX}px,0,0)`;
+  void marqueeTrack.offsetHeight; // force reflow so the jump above isn't itself animated
+
+  marqueeTrack.style.transition = `transform ${duration}s linear`;
+  marqueeTrack.style.transform = `translate3d(${targetX}px,0,0)`;
+  animTargetX = targetX;
+  running = true;
+}
+
+function pauseAnim(){
+  if(!running) return;
+  const currentX = getCurrentX();
+  marqueeTrack.style.transition = 'none';
+  marqueeTrack.style.transform = `translate3d(${currentX}px,0,0)`;
+  posX = currentX;
+  running = false;
+}
+
+marqueeTrack.addEventListener('transitionend', (e) => {
+  if(e.propertyName !== 'transform') return;
+  posX = animTargetX;
+  running = false;
+});
 
 startBtn.addEventListener('click', () => {
   const finished = trackWidth > 0 && posX <= -trackWidth;
@@ -433,31 +454,24 @@ startBtn.addEventListener('click', () => {
     buildTrack();
   }
   direction = -1;
-  if(!running){
-    running = true;
-    lastTime = null;
-    rafId = requestAnimationFrame(animate);
-  }
+  runTo(-trackWidth);
 });
 
 reverseBtn.addEventListener('click', () => {
   if(marqueeTrack.children.length === 0) return;
+  pauseAnim();
   direction = direction === -1 ? 1 : -1;
-  if(!running){
-    running = true;
-    lastTime = null;
-    rafId = requestAnimationFrame(animate);
-  }
+  const target = direction === -1 ? -trackWidth : marqueeOuter.clientWidth;
+  runTo(target);
 });
 
 pauseBtn.addEventListener('click', () => {
-  running = false;
-  if(rafId) cancelAnimationFrame(rafId);
+  pauseAnim();
 });
 
 resetBtn.addEventListener('click', () => {
-  running = false;
-  if(rafId) cancelAnimationFrame(rafId);
+  pauseAnim();
+  marqueeTrack.style.transition = 'none';
   marqueeTrack.innerHTML = '';
   inputText.value = '';
   pickedWords = [];
