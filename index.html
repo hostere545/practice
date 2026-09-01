@@ -137,13 +137,11 @@
     font-size:1.15rem;
     border-radius:8px;
     cursor:pointer;
-    transition:background .15s ease, color .15s ease, transform .1s ease;
     user-select:none;
   }
   .word:hover{
     background:var(--accent);
     color:#0f172a;
-    transform:scale(1.08);
   }
   .word.picked{
     background:var(--accent2);
@@ -263,11 +261,17 @@ let trackWidth = 0;
 let direction = -1; // -1 = left-ward (default), 1 = right-ward
 let animTargetX = 0;
 
+let speedRestartTimer = null;
 speed.addEventListener('input', () => {
   speedVal.textContent = speed.value + ' px/s';
   if(running){
-    posX = getCurrentX();
-    runTo(animTargetX);
+    // throttle: only restart the transition a moment after the user stops
+    // dragging, so a large word list doesn't force a reflow on every tick
+    clearTimeout(speedRestartTimer);
+    speedRestartTimer = setTimeout(() => {
+      posX = getCurrentX();
+      runTo(animTargetX);
+    }, 120);
   }
 });
 
